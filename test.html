@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+
+        const ws = new WebSocket('ws://localhost:3000/ws');
+
+        ws.onopen = () => {
+            status.textContent = 'Connected';
+            console.log('Connected');
+        };
+
+        ws.onmessage = (event) => {
+            const msg = document.createElement('div');
+            msg.textContent = 'Received: ' + event.data;
+            messages.appendChild(msg);
+            console.log('Received:', event.data);
+        };
+
+        ws.onclose = () => {
+            status.textContent = 'Disconnected';
+            console.log('Disconnected');
+        };
+
+        ws.onerror = (error) => {
+            status.textContent = 'Error: ' + error;
+            console.error('Error:', error);
+        };
+
+        // Test registration
+        setTimeout(() => {
+            fetch('http://localhost:3000/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: 'Browser Test App',
+                    address: '127.0.0.1',
+                    port: 8082
+                })
+            }).then(() => {
+                console.log('Registered app from browser');
+            });
+        }, 1000);
+    </script>
+</body>
+</html>
