@@ -60,7 +60,7 @@ export function build_robot_renderer(container: HTMLDivElement) {
     scene.add(l2);
 
     // add grid
-    let grid = new GridHelper(10, 10, 0x555555, 0x555555);
+    let grid = new GridHelper(10, 10, 0x666666, 0x666666);
     scene.add(grid);
 
     robot_renderer = new RobotRenderer(renderer, scene, camera);
