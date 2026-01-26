@@ -15,12 +15,15 @@
         VecF64: 3,
     } as const;
     type DataType = (typeof DataType)[keyof typeof DataType];
+    
     function get_path(buffer: Uint8Array): string {
         return new TextDecoder('utf-8').decode(buffer);
     }
+    
     function get_type(p0: number): DataType {
         return p0 as DataType;
     }
+
     class Frame {
         timestamp: bigint;
         path: string;

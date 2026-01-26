@@ -1,39 +1,77 @@
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener},
     sync::mpsc::{Sender, channel},
-    thread::{spawn},
+    thread::spawn,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tungstenite::{Bytes, Message, accept};
 
-// pub enum Data {
-//     String(String),
-//     F64(f64),
-//     VecF64(Vec<f64>),
-//     F32(f32),
-//     VecF32(Vec<f32>),
-//     Mat4F64([f64; 16]),
-// }
-
-// impl Data {
-//     fn to_bytes(&self) -> Bytes {
-//         match self {
-//             Data::String(s) => Bytes::from(s),
-//             Data::F64(f) => Bytes::from(f.to_string()),
-//             Data::VecF64(v) => Bytes::from(v.to_string()),
-//             Data::F32(f) => Bytes::from(f.to_string()),
-//             Data::VecF32(v) => Bytes::from(v.to_string()),
-//             Data::Mat4F64(m) => Bytes::from(m.to_string()),
-//         }
-//     }
-// }
-
 trait LoggableData {
-    fn to_bytes(&self) -> Bytes;
+    const TYPE: u16;
+    fn to_bytes(&self) -> &[u8];
 }
+
+impl<T: LoggableData> LoggableData for &T {
+    const TYPE: u16 = T::TYPE;
+    fn to_bytes(&self) -> &[u8] {
+        T::to_bytes(self)
+    }
+}
+
+impl LoggableData for f64 {
+    const TYPE: u16 = 0;
+    fn to_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self as *const f64 as *const u8, 8) }
+    }
+}
+
+enum Mesh {
+    Box([f64; 3]),
+    BoxLine([f64; 3]),
+    Sphere(f64),
+    Cylinder([f64; 2]),
+    Capsule([f64; 2]),
+    // file name, path
+    Stl(String),
+    // file name, path
+    // Gltf(String, String),
+}
+
+impl LoggableData for Mesh {
+    const TYPE: u16 = 1;
+    fn to_bytes(&self) -> &[u8] {
+        // self.data.as_slice()
+        todo!()
+    }
+}
+
+struct MeshMaterial {
+    color: [u8; 3],
+    roughness: f64,
+    metalness: f64,
+}
+
+impl LoggableData for MeshMaterial {
+    const TYPE: u16 = 2;
+
+    fn to_bytes(&self) -> &[u8] {
+        todo!()
+    }
+}
+
+impl LoggableData for nalgebra::Matrix4<f64> {
+    const TYPE: u16 = 3;
+    
+    fn to_bytes(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.as_ptr() as *const u8, 128) }
+    }
+}
+
+
 
 enum Command {
     Close,
-    Data(Bytes),
+    Data(Vec<u8>),
 }
 
 struct Monitor {
@@ -65,33 +103,36 @@ impl Monitor {
                     Ok(command) => match command {
                         Command::Close => {
                             websocket.close(None).unwrap();
-                            return
+                            return;
                         }
                         Command::Data(data) => {
-                            websocket.send(Message::Binary(data)).unwrap();
+                            websocket.send(Message::Binary(Bytes::from(data))).unwrap();
                         }
                     },
                     Err(_) => {
                         websocket.close(None).unwrap();
-                        return
-                    },
+                        return;
+                    }
                 }
             }
         });
         Self { tx }
     }
 
-    fn send(&self, data: Bytes) {
-        self.tx.send(Command::Data(data)).unwrap();
-    }
-
-    fn log(&self, path: &str, data: impl LoggableData) {
-        // let data_bytes = data.to_bytes();
-        // let mut bytes = Bytes::new();
-        // bytes = bytes + path.as_bytes();
-        // bytes.extend(path.as_bytes());
-        // bytes.extend(data_bytes);
-        // self.send(bytes);
+    // --- 16 bytes timestamp --- 2 byte path length --- path --- 2 bytes data type --- data ---
+    fn log<T: LoggableData>(&self, path: &str, data: T) {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0))
+            .as_nanos();
+        let data_bytes = data.to_bytes();
+        let mut vec = Vec::with_capacity(16 + 2 + path.len() + 2 + data_bytes.len());
+        vec.extend_from_slice(&timestamp.to_le_bytes());
+        vec.extend_from_slice(&(path.len() as u16).to_le_bytes());
+        vec.extend_from_slice(path.as_bytes());
+        vec.extend_from_slice(&T::TYPE.to_le_bytes());
+        vec.extend_from_slice(data_bytes);
+        self.tx.send(Command::Data(vec)).unwrap();
     }
 }
 
@@ -99,7 +140,7 @@ impl Monitor {
 fn main() {
     let monitor = Monitor::new(9876);
     loop {
-        monitor.send(Bytes::from_static(&[1, 2, 3, 4, 5]));
+        monitor.log("test", 1.0);
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 }
