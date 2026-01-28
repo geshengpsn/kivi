@@ -247,7 +247,7 @@ impl Monitor {
 /// A WebSocket echo server
 fn main() {
     let monitor = Monitor::new(9876);
-    loop {
+    for _ in 0..10 {
         monitor.log("test", Box3 { size: [1.0, 2.0, 3.0] }).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(1));
     }

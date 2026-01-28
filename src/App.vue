@@ -1,11 +1,16 @@
 <script setup lang="ts">
     import { ref, onMounted, onUnmounted } from 'vue';
-    import { build_robot_renderer } from './renderer';
+    import { build_robot_renderer, robot_renderer } from './renderer';
+    import ObjectInfoPanel from './components/ObjectInfoPanel.vue';
+    import type { Object3D } from 'three';
 
     const canvas = ref<HTMLDivElement | null>(null);
+    const canvasContainer = ref<HTMLDivElement | null>(null);
     const wsConnected = ref(false);
     const wsConnection = ref<WebSocket | null>(null);
     const wsPort = ref(9876);
+    const selectedObject = ref<Object3D | null>(null);
+    const isPanelVisible = ref(true);
     const Clip: Frame[] = [];
     
     const DataType = {
@@ -86,7 +91,15 @@
     }
 
     function showData() {
-        // console.log(clip);
+        console.log(robot_renderer);
+    }
+
+    function togglePanel() {
+        isPanelVisible.value = !isPanelVisible.value;
+    }
+
+    function handleObjectSelection(object: Object3D | null) {
+        selectedObject.value = object;
     }
     
     // WebSocket连接函数
@@ -98,8 +111,11 @@
             
             wsConnection.value = ws;
 
-            ws.onopen = () => {
+            ws.onopen = (ev: Event) => {
                 console.log('WebSocket connected successfully');
+                console.log(new Date().toLocaleString());
+                // start a new clip
+                console.log(ev);
                 wsConnected.value = true;
             };
 
@@ -133,12 +149,23 @@
     onMounted(() => {
         if (canvas.value !== null) {
             build_robot_renderer(canvas.value);
+
+            if (robot_renderer && canvasContainer.value) {
+                // Setup selection callback
+                robot_renderer.setObjectSelectionCallback(handleObjectSelection);
+
+                // Setup resize observer
+                robot_renderer.setupResizeObserver(canvasContainer.value);
+            }
         } else {
             console.error('canvas not found');
         }
     });
 
     onUnmounted(() => {
+        if (robot_renderer) {
+            robot_renderer.cleanup();
+        }
         // 清理WebSocket连接
         if (wsConnection.value) {
             wsConnection.value.close();
@@ -148,15 +175,25 @@
 </script>
 
 <template>
-    <div style="position: absolute; background-color: rgba(0, 0, 0, 0.5); z-index: 1000;">
-        <label for="wsPort">WebSocket Port:</label>
-        <input type="number" v-model="wsPort" id="wsPort" />
-        <button @click="connectWebSocket" v-if="!wsConnected">Connect</button>
-        <button @click="showData">show data</button>
+    <div class="flex h-screen w-screen overflow-hidden">
+        <div class="absolute top-2.5 left-2.5 z-[1000] bg-black/50 p-2.5 rounded">
+            <label for="wsPort">WebSocket Port:</label>
+            <input type="number" v-model="wsPort" id="wsPort" class="ml-2 px-2 py-1 bg-gray-800 text-white border border-gray-600 rounded" />
+            <button @click="connectWebSocket" v-if="!wsConnected" class="ml-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">Connect</button>
+            <button @click="showData" class="ml-2 px-3 py-1 bg-gray-700 hover:bg-gray-600 text-white rounded">show data</button>
+        </div>
+        <div class="flex-1 relative overflow-hidden" ref="canvasContainer">
+            <div ref="canvas"></div>
+        </div>
+        <div v-if="isPanelVisible" class="w-80 bg-black/85 overflow-y-auto border-l border-gray-700">
+            <ObjectInfoPanel :selectedObject="selectedObject" />
+        </div>
+        <button
+            class="absolute top-1/2 -translate-y-1/2 z-[1001] bg-black/70 text-white border border-gray-700 px-3 py-2 cursor-pointer rounded-l hover:bg-black/90 transition-all duration-300"
+            @click="togglePanel"
+            :style="{ right: isPanelVisible ? '320px' : '0' }"
+        >
+            {{ isPanelVisible ? '>' : '<' }}
+        </button>
     </div>
-    <div ref="canvas"></div>
-
 </template>
-
-<style scoped>
-</style>
