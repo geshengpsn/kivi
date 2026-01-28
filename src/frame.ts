@@ -138,7 +138,7 @@ function apply_by_data(object: Object3D, data_index: DataTypeIndex, data: any) {
     }
 }
 
-class Frame {
+export class Frame {
     timestamp: bigint;
     path: string[];
     type_index: DataTypeIndex;
