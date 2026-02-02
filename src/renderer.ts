@@ -1,4 +1,4 @@
-import { AmbientLight, AxesHelper, Color, DirectionalLight, Fog, GridHelper, Group, Matrix4, PerspectiveCamera, Scene, WebGLRenderer, Raycaster, Vector2, Object3D } from "three"
+import { AmbientLight, AxesHelper, Color, DirectionalLight, Fog, GridHelper, Group, PerspectiveCamera, Scene, WebGLRenderer } from "three"
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ref } from "vue";
 
@@ -8,10 +8,6 @@ export class RobotRenderer {
     renderer: WebGLRenderer
     scene: Scene
     camera: PerspectiveCamera
-    raycaster: Raycaster
-    mouse: Vector2
-    onObjectSelected?: (object: Object3D | null) => void
-    private clickStartPos: { x: number; y: number } | null = null
 
     constructor(
         renderer: WebGLRenderer,
@@ -21,72 +17,6 @@ export class RobotRenderer {
         this.renderer = renderer;
         this.scene = scene;
         this.camera = camera;
-        this.raycaster = new Raycaster();
-        this.mouse = new Vector2();
-        this.setupRaycasting();
-    }
-
-    setupRaycasting() {
-        this.renderer.domElement.addEventListener('mousedown', this.handleMouseDown.bind(this));
-        this.renderer.domElement.addEventListener('mouseup', this.handleMouseUp.bind(this));
-    }
-
-    handleMouseDown(event: MouseEvent) {
-        this.clickStartPos = { x: event.clientX, y: event.clientY };
-    }
-
-    handleMouseUp(event: MouseEvent) {
-        // Only trigger selection if mouse didn't move much (not a drag)
-        if (this.clickStartPos) {
-            const dx = event.clientX - this.clickStartPos.x;
-            const dy = event.clientY - this.clickStartPos.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < 5) { // 5px threshold
-                this.handleClick(event);
-            }
-        }
-        this.clickStartPos = null;
-    }
-
-    handleClick(event: MouseEvent) {
-        const rect = this.renderer.domElement.getBoundingClientRect();
-        this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-        this.raycaster.setFromCamera(this.mouse, this.camera);
-
-        const mainScene = this.scene.getObjectByName('main_scene');
-        if (!mainScene) return;
-
-        const intersects = this.raycaster.intersectObjects(this.scene.children, true);
-
-        if (intersects.length > 0) {
-            this.onObjectSelected?.(intersects[0].object);
-        } else {
-            this.onObjectSelected?.(null);
-        }
-    }
-
-    setObjectSelectionCallback(callback: (object: Object3D | null) => void) {
-        this.onObjectSelected = callback;
-    }
-
-    setupResizeObserver(container: HTMLElement) {
-        const resizeObserver = new ResizeObserver((entries) => {
-            for (const entry of entries) {
-                const { width, height } = entry.contentRect;
-                this.camera.aspect = width / height;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(width, height);
-            }
-        });
-        resizeObserver.observe(container);
-    }
-
-    cleanup() {
-        this.renderer.domElement.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-        this.renderer.domElement.removeEventListener('mouseup', this.handleMouseUp.bind(this));
     }
 
     render() {
@@ -152,3 +82,13 @@ export function build_robot_renderer(container: HTMLDivElement) {
 
 export let robot_renderer: RobotRenderer | null = null;
 
+window.onresize = function () {
+    if (robot_renderer !== null) {
+        robot_renderer.camera.aspect = window.innerWidth / window.innerHeight;
+        robot_renderer.camera.updateProjectionMatrix();
+        robot_renderer.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+};
+
+export function a() {
+}

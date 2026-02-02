@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     io::{Read, Write, BufReader, BufRead},
     net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     thread::spawn,
@@ -48,22 +49,61 @@ fn detect_protocol(stream: &mut TcpStream) -> (Protocol, Vec<u8>) {
     (Protocol::RawTcp, buffer[..total_read].to_vec())
 }
 
+#[derive(Debug)]
+enum Method {
+    Get,
+    Post,
+}
+
+impl Method {
+    fn from_str(method_str: &str) -> Option<Self> {
+        match method_str {
+            "GET" => Some(Method::Get),
+            "POST" => Some(Method::Post),
+            _ => None,
+        }
+    }
+}
+
 fn handle_http(mut stream: TcpStream) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut request_line = String::new();
 
     if reader.read_line(&mut request_line).is_ok() {
-        println!("HTTP Request: {}", request_line.trim());
+        // Parse request line (e.g., "GET /path HTTP/1.1")
+        let parts: Vec<&str> = request_line.split_whitespace().collect();
+        let method = Method::from_str(parts.first().unwrap_or(&"")).unwrap_or(Method::Get);
+        let path = parts.get(1).unwrap_or(&"");
+        let version = parts.get(2).unwrap_or(&"");
 
-        // Read headers
-        let mut headers = Vec::new();
+        println!("HTTP Request:");
+        println!("  Method: {:?}", method);
+        println!("  Path: {}", path);
+        println!("  Version: {}", version);
+
+        // Read and parse headers
+        let mut headers = HashMap::new();
         loop {
             let mut line = String::new();
             if reader.read_line(&mut line).is_err() || line == "\r\n" || line == "\n" {
                 break;
             }
-            headers.push(line);
+
+            // Parse header line (e.g., "Content-Type: application/json")
+            if let Some(colon_pos) = line.find(':') {
+                let key = line[..colon_pos].trim().to_string();
+                let value = line[colon_pos + 1..].trim().to_string();
+                headers.insert(key, value);
+            }
         }
+
+        // match method {}
+
+        // Display parsed headers
+        // println!("  Headers:");
+        // for (key, value) in &headers {
+        //     println!("    {}: {}", key, value);
+        // }
 
         // Send HTTP response
         let response = "HTTP/1.1 200 OK\r\n\
@@ -117,38 +157,37 @@ fn handle_websocket(stream: TcpStream) {
     }
 }
 
-fn handle_raw_tcp(mut stream: TcpStream) {
-    println!("Raw TCP connection established");
+// fn handle_raw_tcp(mut stream: TcpStream) {
+//     println!("Raw TCP connection established");
 
-    let mut buffer = [0u8; 4096];
-    loop {
-        match stream.read(&mut buffer) {
-            Ok(0) => {
-                println!("Raw TCP connection closed by client");
-                break;
-            }
-            Ok(n) => {
-                println!("Received {} bytes of raw TCP data", n);
-                // Echo back the data
-                if stream.write_all(&buffer[..n]).is_err() {
-                    break;
-                }
-            }
-            Err(e) => {
-                println!("Raw TCP error: {}", e);
-                break;
-            }
-        }
-    }
-}
+//     let mut buffer = [0u8; 4096];
+//     loop {
+//         match stream.read(&mut buffer) {
+//             Ok(0) => {
+//                 println!("Raw TCP connection closed by client");
+//                 break;
+//             }
+//             Ok(n) => {
+//                 println!("Received {} bytes of raw TCP data", n);
+//                 // Echo back the data
+//                 if stream.write_all(&buffer[..n]).is_err() {
+//                     break;
+//                 }
+//             }
+//             Err(e) => {
+//                 println!("Raw TCP error: {}", e);
+//                 break;
+//             }
+//         }
+//     }
+// }
 
 fn main() {
     let port = 9876;
     let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), port);
     let server = TcpListener::bind(addr).unwrap();
 
-    println!("Multi-protocol server listening on {}", addr);
-    println!("Supports: HTTP, WebSocket, and Raw TCP");
+    println!("Listening on http://{}", addr);
 
     for stream in server.incoming().flatten() {
         spawn(move || {
@@ -168,8 +207,8 @@ fn main() {
                     handle_websocket(stream);
                 }
                 Protocol::RawTcp => {
-                    println!("Detected Raw TCP protocol");
-                    handle_raw_tcp(stream);
+                    println!("Detected Raw TCP protocol, Do nothing");
+                    // handle_raw_tcp(stream);
                 }
             }
         });
